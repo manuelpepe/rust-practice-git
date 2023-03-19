@@ -4,8 +4,8 @@ use std::io::prelude::*;
 
 pub fn catfile(blobid: &String) -> String {
     let fpath = format!(".git/objects/{}/{}", &blobid[..2], &blobid[2..]);
-    let file = fs::File::open(fpath).unwrap();
+    let bdata = fs::read(fpath).unwrap();
     let mut s = String::new();
-    ZlibDecoder::new(file).read_to_string(&mut s).unwrap();
+    ZlibDecoder::new(&bdata[..]).read_to_string(&mut s).unwrap();
     return s;
 }
