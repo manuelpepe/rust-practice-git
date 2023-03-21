@@ -7,5 +7,5 @@ pub fn catfile(blobid: &String) -> String {
     let file = fs::File::open(fpath).unwrap();
     let mut s = String::new();
     ZlibDecoder::new(file).read_to_string(&mut s).unwrap();
-    return s[s.find('\0').unwrap()..].to_string();
+    return s[s.find('\0').unwrap() + 1..].to_string();
 }
