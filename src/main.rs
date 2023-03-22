@@ -13,6 +13,10 @@ fn main() {
             let data = files::catfile(&blobid);
             print!("{}", data);
         }
+    } else if args[1] == "hash-object" {
+        let write = args[2] == "-w";
+        let path = &args[3];
+        println!("{}", files::hashobject(&path, write))
     } else {
         println!("unknown command: {}", args[1])
     }
