@@ -2,6 +2,7 @@ use core::slice::Iter;
 use flate2::read::ZlibDecoder;
 use flate2::read::ZlibEncoder;
 use flate2::Compression;
+use sha1::Digest;
 use std::fs::{self, File};
 use std::io::Cursor;
 use std::io::Read;
@@ -139,4 +140,18 @@ pub fn store_object(data: &mut Vec<u8>, digest: &String, header: ObjectHeader) {
         }
         f.write(&buffer).unwrap();
     }
+}
+
+pub fn calculate_object_hash(header: &ObjectHeader, content: &Vec<u8>) -> String {
+    // probably move to objects
+    let mut cont = content.clone();
+    let mut data = Vec::new();
+    data.append(&mut header.to_string().as_bytes().to_vec());
+    data.append(&mut cont);
+
+    let mut hash = sha1::Sha1::new();
+    hash.update(data);
+
+    let digest = format!("{:x}", hash.finalize());
+    return digest;
 }
