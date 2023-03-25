@@ -40,7 +40,7 @@ pub fn hashobject(path: &String, write: bool) -> String {
     if write {
         file.seek(SeekFrom::Start(0)).unwrap();
         objects::store_object(
-            &mut content,
+            &mut content.as_bytes().to_vec(),
             &digest,
             objects::ObjectHeader {
                 type_: "blob".to_string(),

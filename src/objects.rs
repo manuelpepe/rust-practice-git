@@ -3,7 +3,10 @@ use flate2::read::ZlibDecoder;
 use flate2::read::ZlibEncoder;
 use flate2::Compression;
 use std::fs::{self, File};
+use std::io::Cursor;
 use std::io::Read;
+use std::io::Seek;
+use std::io::SeekFrom;
 use std::io::Write;
 use std::path::Path;
 
@@ -41,6 +44,7 @@ fn get_header(iter: &mut Iter<u8>) -> ObjectHeader {
         buf.push(i as char)
     }
     let mut header_parts = buf.split(" ");
+    println!("{:?}", buf);
     let type_ = header_parts.next().unwrap();
     let size: usize = header_parts.next().unwrap().parse().unwrap();
     return ObjectHeader {
@@ -116,16 +120,17 @@ pub fn load_object(sha1digest: &String) -> GitObject {
     };
 }
 
-pub fn store_object(data: &mut String, digest: &String, header: ObjectHeader) {
+pub fn store_object(data: &mut Vec<u8>, digest: &String, header: ObjectHeader) {
     let pathstr = objstore_path(&digest);
     let outpath = Path::new(&pathstr);
     fs::create_dir_all(outpath.parent().unwrap()).unwrap();
     let mut f = File::create(outpath).unwrap();
 
-    let mut content = header.to_string();
-    content.push_str(data);
-
-    let mut encoder = ZlibEncoder::new(content.as_bytes(), Compression::fast());
+    let mut content = Cursor::new(Vec::new());
+    content.write(header.to_string().as_bytes()).unwrap();
+    content.write(data).unwrap();
+    content.seek(SeekFrom::Start(0)).unwrap();
+    let mut encoder = ZlibEncoder::new(content, Compression::fast());
     let mut buffer = [0; 1024];
     loop {
         let bytes = encoder.read(&mut buffer).unwrap();
