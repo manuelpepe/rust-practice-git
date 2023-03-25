@@ -68,7 +68,6 @@ fn get_tree_data(iter: &mut Iter<u8>) -> String {
         // filenames
         for &i in iter.by_ref() {
             if i == 0 {
-                s.push(' ');
                 break;
             }
             s.push(i as char);
