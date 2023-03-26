@@ -1,14 +1,9 @@
 use core::slice::Iter;
-use flate2::read::ZlibDecoder;
-use flate2::read::ZlibEncoder;
+use flate2::read::{ZlibDecoder, ZlibEncoder};
 use flate2::Compression;
 use sha1::Digest;
-use std::fs::{self, File};
-use std::io::Cursor;
-use std::io::Read;
-use std::io::Seek;
-use std::io::SeekFrom;
-use std::io::Write;
+use std::fs;
+use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
 pub struct ObjectHeader {
@@ -125,7 +120,7 @@ pub fn store_object(data: &mut Vec<u8>, digest: &String, header: ObjectHeader) {
     let pathstr = objstore_path(&digest);
     let outpath = Path::new(&pathstr);
     fs::create_dir_all(outpath.parent().unwrap()).unwrap();
-    let mut f = File::create(outpath).unwrap();
+    let mut f = fs::File::create(outpath).unwrap();
 
     let mut content = Cursor::new(Vec::new());
     content.write(header.to_string().as_bytes()).unwrap();
