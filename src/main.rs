@@ -37,6 +37,8 @@ fn main() {
                 println!("{}\t{}\t{}", node.permissions, node.filename, node.hash);
             }
         }
+    } else if args[1] == "write-tree" {
+        tree::writetree();
     } else {
         println!("unknown command: {}", args[1])
     }

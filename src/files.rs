@@ -23,7 +23,7 @@ pub fn hashobject(path: &String, write: bool) -> String {
     };
     let digest = objects::calculate_object_hash(&header, &content);
     if write {
-        objects::store_object(&mut content, &digest, header);
+        objects::store_object(&content, &digest, header);
     }
     return digest;
 }

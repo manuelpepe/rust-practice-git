@@ -40,7 +40,6 @@ fn get_header(iter: &mut Iter<u8>) -> ObjectHeader {
         buf.push(i as char)
     }
     let mut header_parts = buf.split(" ");
-    println!("{:?}", buf);
     let type_ = header_parts.next().unwrap();
     let size: usize = header_parts.next().unwrap().parse().unwrap();
     return ObjectHeader {
@@ -116,7 +115,7 @@ pub fn load_object(sha1digest: &String) -> GitObject {
     };
 }
 
-pub fn store_object(data: &mut Vec<u8>, digest: &String, header: ObjectHeader) {
+pub fn store_object(data: &Vec<u8>, digest: &String, header: ObjectHeader) {
     let pathstr = objstore_path(&digest);
     let outpath = Path::new(&pathstr);
     fs::create_dir_all(outpath.parent().unwrap()).unwrap();
