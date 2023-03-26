@@ -57,10 +57,10 @@ fn get_tree_data(iter: &mut Iter<u8>) -> String {
         // permissions
         // TODO: Leftpad with 0s to 6 chars
         for &i in iter.by_ref() {
-            s.push(i as char);
             if i == 0x20 {
                 break;
             }
+            s.push(i as char);
         }
         s.push('\t');
 
