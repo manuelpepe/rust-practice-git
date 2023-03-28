@@ -12,31 +12,42 @@ mod tree;
 #[command(propagate_version = true)]
 struct Cli {
     #[command(subcommand)]
-    command: Option<Commands>,
+    command: Commands,
 }
 
 #[derive(Subcommand)]
 enum Commands {
+    /// initialize git repository
     Init {},
+
+    /// print contents of blob objects
     CatFile {
         object: String,
 
         #[clap(short = 'p', help = "pretty print object")]
         pretty: bool,
     },
+
+    /// calculate sha1 for file and optionally store the object
     HashObject {
         path: String,
 
         #[clap(short = 'w', help = "write object to object store")]
         write: bool,
     },
+
+    /// print contents of tree objects
     LsTree {
         treeid: String,
 
         #[clap(long, help = "print only object names")]
         name_only: bool,
     },
+
+    /// recursively store current working directory as repository objects
     WriteTree {},
+
+    /// create commit from a written tree
     CommitTree {
         treeid: String,
 
@@ -52,14 +63,14 @@ fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
-        Some(Commands::Init {}) => init(),
-        Some(Commands::CatFile { object, pretty: _ }) => {
+        Commands::Init {} => init(),
+        Commands::CatFile { object, pretty: _ } => {
             print!("{}", files::catfile(object));
         }
-        Some(Commands::HashObject { write, path }) => {
+        Commands::HashObject { write, path } => {
             println!("{}", files::hashobject(path, *write))
         }
-        Some(Commands::LsTree { treeid, name_only }) => {
+        Commands::LsTree { treeid, name_only } => {
             let tree = tree::lstree(&treeid);
             for node in tree.iter() {
                 if *name_only {
@@ -69,19 +80,16 @@ fn main() {
                 }
             }
         }
-        Some(Commands::WriteTree {}) => tree::writetree(),
-        Some(Commands::CommitTree {
+        Commands::WriteTree {} => tree::writetree(),
+        Commands::CommitTree {
             treeid,
             parent,
             message,
-        }) => {
+        } => {
             let newcommitid =
                 tree::committree(&"manuel@manuel.com".to_string(), treeid, parent, message)
                     .unwrap();
             println!("{}", newcommitid);
-        }
-        None => {
-            println!("unknown command")
         }
     }
 }
