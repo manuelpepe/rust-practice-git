@@ -125,6 +125,7 @@ pub fn store_object(data: &Vec<u8>, digest: &String, header: ObjectHeader) {
     content.write(header.to_string().as_bytes()).unwrap();
     content.write(data).unwrap();
     content.seek(SeekFrom::Start(0)).unwrap();
+
     let mut encoder = ZlibEncoder::new(content, Compression::fast());
     let mut buffer = [0; 1024];
     loop {
@@ -132,7 +133,7 @@ pub fn store_object(data: &Vec<u8>, digest: &String, header: ObjectHeader) {
         if bytes == 0 {
             break;
         }
-        f.write(&buffer).unwrap();
+        f.write(&buffer[..bytes]).unwrap();
     }
 }
 
