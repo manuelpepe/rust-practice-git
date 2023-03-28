@@ -34,7 +34,7 @@ enum Commands {
         treeid: String,
 
         #[clap(long, help = "print only object names")]
-        only_name: bool,
+        name_only: bool,
     },
     WriteTree {},
     CommitTree {
@@ -59,10 +59,10 @@ fn main() {
         Some(Commands::HashObject { write, path }) => {
             println!("{}", files::hashobject(path, *write))
         }
-        Some(Commands::LsTree { treeid, only_name }) => {
+        Some(Commands::LsTree { treeid, name_only }) => {
             let tree = tree::lstree(&treeid);
             for node in tree.iter() {
-                if *only_name {
+                if *name_only {
                     println!("{}", node.filename);
                 } else {
                     println!("{}\t{}\t{}", node.permissions, node.filename, node.hash);
