@@ -1,53 +1,88 @@
-use std::env;
+use clap::Parser;
+use clap::Subcommand;
+
 use std::fs;
 
 mod files;
 mod objects;
 mod tree;
 
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+#[command(propagate_version = true)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    Init {},
+    CatFile {
+        object: String,
+
+        #[clap(short = 'p', help = "pretty print object")]
+        pretty: bool,
+    },
+    HashObject {
+        path: String,
+
+        #[clap(short = 'w', help = "write object to object store")]
+        write: bool,
+    },
+    LsTree {
+        treeid: String,
+
+        #[clap(long, help = "print only object names")]
+        only_name: bool,
+    },
+    WriteTree {},
+    CommitTree {
+        treeid: String,
+
+        #[clap(short = 'p', help = "parent commit")]
+        parent: String,
+
+        #[clap(short = 'm', help = "commit message")]
+        message: String,
+    },
+}
+
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args[1] == "init" {
-        init()
-    } else if args[1] == "cat-file" {
-        if args[2] == "-p" {
-            let blobid: &String = &args[3];
-            let data = files::catfile(&blobid);
-            print!("{}", data);
+    let cli = Cli::parse();
+
+    match &cli.command {
+        Some(Commands::Init {}) => init(),
+        Some(Commands::CatFile { object, pretty: _ }) => {
+            print!("{}", files::catfile(object));
         }
-    } else if args[1] == "hash-object" {
-        let write = args[2] == "-w";
-        let path = &args[3];
-        println!("{}", files::hashobject(&path, write))
-    } else if args[1] == "ls-tree" {
-        let treeid: &String;
-        let only_name: bool;
-        if args[2] == "--name-only" {
-            only_name = true;
-            treeid = &args[3];
-        } else {
-            only_name = false;
-            treeid = &args[2];
+        Some(Commands::HashObject { write, path }) => {
+            println!("{}", files::hashobject(path, *write))
         }
-        let tree = tree::lstree(&treeid);
-        for node in tree.iter() {
-            if only_name {
-                println!("{}", node.filename);
-            } else {
-                println!("{}\t{}\t{}", node.permissions, node.filename, node.hash);
+        Some(Commands::LsTree { treeid, only_name }) => {
+            let tree = tree::lstree(&treeid);
+            for node in tree.iter() {
+                if *only_name {
+                    println!("{}", node.filename);
+                } else {
+                    println!("{}\t{}\t{}", node.permissions, node.filename, node.hash);
+                }
             }
         }
-    } else if args[1] == "write-tree" {
-        tree::writetree();
-    } else if args[1] == "commit-tree" {
-        let treeid = args[2].clone();
-        let commitid = args[4].clone();
-        let message = args[6].clone();
-        let newcommitid =
-            tree::committree("manuel@manuel.com".to_string(), treeid, commitid, message).unwrap();
-        println!("{}", newcommitid);
-    } else {
-        println!("unknown command: {}", args[1])
+        Some(Commands::WriteTree {}) => tree::writetree(),
+        Some(Commands::CommitTree {
+            treeid,
+            parent,
+            message,
+        }) => {
+            let newcommitid =
+                tree::committree(&"manuel@manuel.com".to_string(), treeid, parent, message)
+                    .unwrap();
+            println!("{}", newcommitid);
+        }
+        None => {
+            println!("unknown command")
+        }
     }
 }
 

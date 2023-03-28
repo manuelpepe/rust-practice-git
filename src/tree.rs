@@ -140,16 +140,16 @@ fn update_master_ref(digest: &String) -> io::Result<()> {
 }
 
 pub fn committree(
-    author: String,
-    treeid: String,
-    parent_commitid: String,
-    message: String,
+    author: &String,
+    treeid: &String,
+    parent_commitid: &String,
+    message: &String,
 ) -> io::Result<String> {
     let timestamp = current_time();
     let mut content = Vec::new();
 
     content.write(format!("tree {}\n", treeid).as_bytes())?;
-    if parent_commitid != "".to_string() {
+    if *parent_commitid != "".to_string() {
         content.write(format!("parent {}\n", parent_commitid).as_bytes())?;
     }
     content.write(format!("author {} {}\n", author, timestamp).as_bytes())?;
