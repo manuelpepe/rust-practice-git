@@ -20,6 +20,7 @@ impl ObjectHeader {
 pub enum GitObject {
     Blob { len: usize, data: String },
     Tree { len: usize, data: String },
+    Commit { len: usize, data: String },
 }
 
 pub fn objstore_path(sha1digest: &String) -> String {
@@ -110,6 +111,10 @@ pub fn load_object(sha1digest: &String) -> GitObject {
         "tree" => GitObject::Tree {
             len: header.len,
             data: get_tree_data(&mut iter),
+        },
+        "commit" => GitObject::Commit {
+            len: header.len,
+            data: get_blob_data(&mut iter),
         },
         _ => panic!("unkown object type"),
     };

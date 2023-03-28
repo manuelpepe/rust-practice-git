@@ -39,6 +39,13 @@ fn main() {
         }
     } else if args[1] == "write-tree" {
         tree::writetree();
+    } else if args[1] == "commit-tree" {
+        let treeid = args[2].clone();
+        let commitid = args[4].clone();
+        let message = args[6].clone();
+        let newcommitid =
+            tree::committree("manuel@manuel.com".to_string(), treeid, commitid, message).unwrap();
+        println!("{}", newcommitid);
     } else {
         println!("unknown command: {}", args[1])
     }

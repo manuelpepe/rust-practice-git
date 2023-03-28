@@ -1,7 +1,9 @@
 use crate::files::hashobject;
 use crate::objects::{calculate_object_hash, load_object, store_object, GitObject, ObjectHeader};
+use chrono::Utc;
 use std::fs::{self, DirEntry};
-use std::io;
+use std::io::{self, Write};
+use std::path::Path;
 use std::slice::Iter;
 
 #[derive(Debug)]
@@ -102,4 +104,61 @@ fn hash_dir(path: &String) -> io::Result<String> {
     let tree_hash = calculate_object_hash(&header, &buf); // sha1::Sha1::new();
     store_object(&buf, &tree_hash, header);
     return Ok(tree_hash);
+}
+
+#[allow(dead_code)]
+// TODO: Use for actual `git commit`
+fn get_commit_parent() -> String {
+    let path = Path::new(".git/refs/heads/master");
+    if path.exists() {
+        return fs::read_to_string(path).unwrap();
+    }
+    return "".to_string();
+}
+
+fn current_time() -> String {
+    let now = Utc::now();
+    return now.format("%s %z").to_string();
+}
+
+fn store_commit(content: &Vec<u8>) -> String {
+    let header = ObjectHeader {
+        type_: "commit".to_string(),
+        len: content.len(),
+    };
+    let digest = calculate_object_hash(&header, &content);
+    store_object(&content, &digest, header);
+    return digest;
+}
+
+fn update_master_ref(digest: &String) -> io::Result<()> {
+    let path = Path::new(".git/refs/heads/master");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let mut file = fs::File::create(path)?;
+    file.write(digest.as_bytes())?;
+    return Ok(());
+}
+
+pub fn committree(
+    author: String,
+    treeid: String,
+    parent_commitid: String,
+    message: String,
+) -> io::Result<String> {
+    let timestamp = current_time();
+    let mut content = Vec::new();
+
+    content.write(format!("tree {}\n", treeid).as_bytes())?;
+    if parent_commitid != "".to_string() {
+        content.write(format!("parent {}\n", parent_commitid).as_bytes())?;
+    }
+    content.write(format!("author {} {}\n", author, timestamp).as_bytes())?;
+    content.write(format!("commiter {} {}\n", author, timestamp).as_bytes())?;
+    content.write("\n".as_bytes())?;
+    content.write(message.as_bytes())?;
+    content.write("\n".as_bytes())?;
+
+    let digest = store_commit(&content);
+    update_master_ref(&digest)?;
+    return Ok(digest);
 }
