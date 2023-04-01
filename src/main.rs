@@ -2,9 +2,12 @@ use clap::Parser;
 use clap::Subcommand;
 
 use std::fs;
+use std::str;
 
+mod clone;
 mod files;
 mod objects;
+mod packs;
 mod tree;
 
 #[derive(Parser)]
@@ -57,6 +60,9 @@ enum Commands {
         #[clap(short = 'm', help = "commit message")]
         message: String,
     },
+
+    /// Clone remote repository
+    Clone { url: String, path: String },
 }
 
 fn main() {
@@ -64,12 +70,8 @@ fn main() {
 
     match &cli.command {
         Commands::Init {} => init(),
-        Commands::CatFile { object, pretty: _ } => {
-            print!("{}", files::catfile(object));
-        }
-        Commands::HashObject { write, path } => {
-            println!("{}", files::hashobject(path, *write))
-        }
+        Commands::CatFile { object, pretty: _ } => print!("{}", files::catfile(object)),
+        Commands::HashObject { write, path } => println!("{}", files::hashobject(path, *write)),
         Commands::LsTree { treeid, name_only } => {
             let tree = tree::lstree(&treeid);
             for node in tree.iter() {
@@ -91,6 +93,7 @@ fn main() {
                     .unwrap();
             println!("{}", newcommitid);
         }
+        Commands::Clone { url, path: _ } => clone::clone(&url),
     }
 }
 
