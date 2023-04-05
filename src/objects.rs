@@ -17,6 +17,8 @@ impl ObjectHeader {
     }
 }
 
+/// TODO: Refactor to struct with enum type
+#[derive(Debug)]
 pub enum GitObject {
     Blob { len: usize, data: String },
     Tree { len: usize, data: String },

@@ -93,7 +93,7 @@ fn main() {
                     .unwrap();
             println!("{}", newcommitid);
         }
-        Commands::Clone { url, path: _ } => clone::clone(&url),
+        Commands::Clone { url, path } => clone::clone(url, path),
     }
 }
 
