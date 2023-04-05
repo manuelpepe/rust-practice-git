@@ -9,7 +9,7 @@ use flate2::bufread::ZlibDecoder;
 
 use crate::objects::{calculate_object_hash, ObjectHeader};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum ObjectType {
     Commit = 1,
     Tree = 2,
@@ -40,8 +40,8 @@ impl Display for ObjectType {
             ObjectType::Tree => "tree",
             ObjectType::Blob => "blob",
             ObjectType::Tag => "tag",
-            ObjectType::OfsDelta => panic!("Display for ofs_delta not implemented"),
-            ObjectType::RefDelta => panic!("Display for ref_delta not implemented"),
+            ObjectType::OfsDelta => "ofs-delta",
+            ObjectType::RefDelta => "ref-delta",
         };
         return write!(f, "{}", type_);
     }
@@ -188,7 +188,7 @@ fn parse_entries(data: &[u8]) -> Vec<Entry> {
                 );
 
                 let entry = Entry {
-                    type_: object_type,
+                    type_: prev_data.type_,
                     size: target_len,
                     sha1: sha1.clone(),
                     data: deltified,

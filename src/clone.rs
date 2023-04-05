@@ -1,4 +1,5 @@
-use crate::packs;
+use crate::objects::{store_object, ObjectHeader};
+use crate::packs::{self, ObjectType, Packfile};
 use std::str;
 
 fn get_discovered(data: &[u8]) -> Vec<String> {
@@ -13,6 +14,24 @@ fn get_discovered(data: &[u8]) -> Vec<String> {
         hashes.push(h);
     }
     return hashes;
+}
+
+fn store_pack_objects(packfile: Packfile) {
+    for entry in packfile.entries {
+        match entry.type_ {
+            ObjectType::Tree | ObjectType::Blob | ObjectType::Commit => store_object(
+                &entry.data.to_vec(),
+                &entry.sha1,
+                ObjectHeader {
+                    type_: entry.type_.to_string(),
+                    len: entry.size,
+                },
+            ),
+            _ => {
+                panic!("storing {} is not supported", entry.type_);
+            }
+        }
+    }
 }
 
 pub fn clone(url: &String) {
@@ -42,5 +61,8 @@ pub fn clone(url: &String) {
         .unwrap();
 
     let packfile = packs::parse_packfile(&resp[8..]);
-    println!("{:?}", packfile);
+    store_pack_objects(packfile);
+    checkout_ref(discovered_refs.get(0).unwrap())
 }
+
+fn checkout_ref(sha1: &String) {}
