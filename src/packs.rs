@@ -7,7 +7,7 @@ use std::{
 use bytes::{Buf, Bytes};
 use flate2::bufread::ZlibDecoder;
 
-use crate::objects::{calculate_object_hash, ObjectHeader};
+use crate::objects::calculate_object_hash;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ObjectType {
@@ -178,15 +178,7 @@ fn parse_entries(data: &[u8]) -> Vec<Entry> {
                 assert_eq!(prev_data.data.len(), source_len);
 
                 let deltified = Bytes::from(apply_delta(intructions, &prev_data.data, target_len));
-
-                let sha1 = calculate_object_hash(
-                    &ObjectHeader {
-                        type_: prev_data.type_.to_string(),
-                        len: target_len,
-                    },
-                    &deltified.to_vec(),
-                );
-
+                let sha1 = calculate_object_hash(&prev_data.type_.to_string(), &deltified.to_vec());
                 let entry = Entry {
                     type_: prev_data.type_,
                     size: target_len,
@@ -198,14 +190,7 @@ fn parse_entries(data: &[u8]) -> Vec<Entry> {
             _ => {
                 let (bytes_read, content) = unpack_compressed_data(&data[ix..]).unwrap();
                 ix += bytes_read;
-
-                let sha1 = calculate_object_hash(
-                    &ObjectHeader {
-                        type_: object_type.to_string(),
-                        len: size as usize,
-                    },
-                    &content.to_vec(),
-                );
+                let sha1 = calculate_object_hash(&object_type.to_string(), &content.to_vec());
                 let entry = Entry {
                     type_: object_type,
                     size: size,

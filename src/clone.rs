@@ -1,7 +1,7 @@
 use bytes::Bytes;
 
 use crate::init;
-use crate::objects::{load_object, store_object, GitObject, ObjectHeader};
+use crate::objects::{load_object, store_object, GitObjectType};
 use crate::packs::{self, ObjectType, Packfile};
 use crate::tree::lstree;
 use anyhow::{bail, Ok, Result};
@@ -47,14 +47,9 @@ fn request_packfile(url: &String, refs: &Vec<String>) -> Bytes {
 fn store_pack_objects(packfile: Packfile) {
     for entry in packfile.entries {
         match entry.type_ {
-            ObjectType::Tree | ObjectType::Blob | ObjectType::Commit => store_object(
-                &entry.data.to_vec(),
-                &entry.sha1,
-                ObjectHeader {
-                    type_: entry.type_.to_string(),
-                    len: entry.size,
-                },
-            ),
+            ObjectType::Tree | ObjectType::Blob | ObjectType::Commit => {
+                store_object(&entry.type_.to_string(), &entry.data.to_vec());
+            }
             _ => {
                 panic!("storing {} is not supported", entry.type_);
             }
@@ -90,8 +85,9 @@ pub fn clone(url: &String, dest: &String) {
 fn checkout_commit(sha1: &String, base: &String) -> Result<()> {
     println!("Checking out at {}", sha1);
     let commit = load_object(sha1);
-    if let GitObject::Commit { len: _, data } = commit {
-        let head_tree = data
+    if let GitObjectType::Commit = commit.type_ {
+        let head_tree = commit
+            .data
             .lines()
             .next()
             .unwrap()
@@ -120,9 +116,10 @@ fn checkout_tree(sha1: &String, base: &String) -> Result<()> {
                 bail!(e);
             };
         } else {
-            if let GitObject::Blob { len: _, data } = load_object(&node.hash) {
+            let blob = load_object(&node.hash);
+            if let GitObjectType::Blob = blob.type_ {
                 let mut f = fs::File::create(new_base).unwrap();
-                f.write(data.as_bytes()).unwrap();
+                f.write(blob.data.as_bytes()).unwrap();
             } else {
                 bail!("treating {} as file", node.hash)
             }

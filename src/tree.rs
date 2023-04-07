@@ -1,5 +1,5 @@
 use crate::files::hashobject;
-use crate::objects::{calculate_object_hash, load_object, store_object, GitObject, ObjectHeader};
+use crate::objects::{load_object, store_object, GitObject, GitObjectType};
 use chrono::Utc;
 use std::fs::{self, DirEntry};
 use std::io::{self, Write};
@@ -14,9 +14,14 @@ pub struct TreeNode {
 }
 
 fn parse_tree(tree: &GitObject) -> Vec<TreeNode> {
-    if let GitObject::Tree { len: _, data } = tree {
+    if let GitObjectType::Tree = tree.type_ {
         let mut vec: Vec<TreeNode> = Vec::new();
-        for line in data.strip_suffix('\n').unwrap_or(data).split('\n') {
+        for line in tree
+            .data
+            .strip_suffix('\n')
+            .unwrap_or(tree.data.as_str())
+            .split('\n')
+        {
             let mut iter = line.split('\t');
             vec.push(TreeNode {
                 permissions: iter.next().unwrap().to_string(),
@@ -97,13 +102,7 @@ fn hash_dir(path: &String) -> io::Result<String> {
     }
     let mut buf = Vec::new();
     tree.to_buf(&mut buf);
-    let header = ObjectHeader {
-        type_: "tree".to_string(),
-        len: buf.len(),
-    };
-    let tree_hash = calculate_object_hash(&header, &buf); // sha1::Sha1::new();
-    store_object(&buf, &tree_hash, header);
-    return Ok(tree_hash);
+    return Ok(store_object(&"tree".to_string(), &buf));
 }
 
 #[allow(dead_code)]
@@ -122,13 +121,7 @@ fn current_time() -> String {
 }
 
 fn store_commit(content: &Vec<u8>) -> String {
-    let header = ObjectHeader {
-        type_: "commit".to_string(),
-        len: content.len(),
-    };
-    let digest = calculate_object_hash(&header, &content);
-    store_object(&content, &digest, header);
-    return digest;
+    return store_object(&"commit".to_string(), content);
 }
 
 fn update_master_ref(digest: &String) -> io::Result<()> {

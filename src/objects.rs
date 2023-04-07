@@ -2,30 +2,49 @@ use core::slice::Iter;
 use flate2::read::{ZlibDecoder, ZlibEncoder};
 use flate2::Compression;
 use sha1::Digest;
+use std::fmt::Display;
 use std::fs;
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
-pub struct ObjectHeader {
-    pub type_: String,
-    pub len: usize,
+/// GitObject is a public facing struct representing a `loaded` git object.
+#[derive(Debug)]
+pub struct GitObject {
+    pub type_: GitObjectType,
+    pub data: String,
 }
 
-impl ObjectHeader {
-    pub fn to_string(&self) -> String {
-        return format!("{} {}{}", self.type_, self.len, '\0');
+#[derive(Debug)]
+pub enum GitObjectType {
+    Blob,
+    Tree,
+    Commit,
+}
+
+impl Display for GitObjectType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let type_ = match self {
+            GitObjectType::Commit => "commit",
+            GitObjectType::Tree => "tree",
+            GitObjectType::Blob => "blob",
+        };
+        return write!(f, "{}", type_);
     }
 }
 
-/// TODO: Refactor to struct with enum type
-#[derive(Debug)]
-pub enum GitObject {
-    Blob { len: usize, data: String },
-    Tree { len: usize, data: String },
-    Commit { len: usize, data: String },
+impl GitObjectType {
+    fn from_string(string: &str) -> GitObjectType {
+        match string {
+            "commit" => GitObjectType::Commit,
+            "tree" => GitObjectType::Tree,
+            "blob" => GitObjectType::Blob,
+            _ => panic!("git object type not known"),
+        }
+    }
 }
 
-pub fn objstore_path(sha1digest: &String) -> String {
+/// Returns the relative path to a git object given its hash, in the cwd
+fn objstore_path(sha1digest: &String) -> String {
     return Path::new(".git/objects")
         .join(&sha1digest[..2])
         .join(&sha1digest[2..])
@@ -34,7 +53,8 @@ pub fn objstore_path(sha1digest: &String) -> String {
         .to_string();
 }
 
-fn get_header(iter: &mut Iter<u8>) -> ObjectHeader {
+/// Returns size and type of git object from iterator of binary data
+fn parse_header(iter: &mut Iter<u8>) -> (usize, GitObjectType) {
     let mut buf = String::new();
     for &i in iter {
         if i == 0 {
@@ -45,13 +65,11 @@ fn get_header(iter: &mut Iter<u8>) -> ObjectHeader {
     let mut header_parts = buf.split(" ");
     let type_ = header_parts.next().unwrap();
     let size: usize = header_parts.next().unwrap().parse().unwrap();
-    return ObjectHeader {
-        len: size,
-        type_: type_.to_string(),
-    };
+    return (size, GitObjectType::from_string(type_));
 }
 
-fn get_tree_data(iter: &mut Iter<u8>) -> String {
+/// Parses tree data as String from iterator of binary data
+fn parse_tree_data(iter: &mut Iter<u8>) -> String {
     let mut s = String::new();
     // TODO: Reorder
     // TODO: Add file type to output (calling a func similar to get header, but without reading the whole file)
@@ -89,12 +107,14 @@ fn get_tree_data(iter: &mut Iter<u8>) -> String {
     return s;
 }
 
-fn get_blob_data(iter: &mut Iter<u8>) -> String {
+/// Parses blob data as String from iterator of binary data
+fn parse_blob_data(iter: &mut Iter<u8>) -> String {
     let d: Vec<u8> = iter.map(|x| *x).collect();
     let s = String::from_utf8(d);
     return s.unwrap();
 }
 
+/// Loads object from local git object store and returns a GitObject
 pub fn load_object(sha1digest: &String) -> GitObject {
     // Decode file
     let fpath = objstore_path(&sha1digest);
@@ -104,36 +124,45 @@ pub fn load_object(sha1digest: &String) -> GitObject {
 
     // Parse file data
     let mut iter = buf.iter();
-    let header = get_header(&mut iter);
-    return match header.type_.as_str() {
-        "blob" => GitObject::Blob {
-            len: header.len,
-            data: get_blob_data(&mut iter),
-        },
-        "tree" => GitObject::Tree {
-            len: header.len,
-            data: get_tree_data(&mut iter),
-        },
-        "commit" => GitObject::Commit {
-            len: header.len,
-            data: get_blob_data(&mut iter),
-        },
-        _ => panic!("unkown object type"),
+    let (size, type_) = parse_header(&mut iter);
+    let data = match type_ {
+        GitObjectType::Blob | GitObjectType::Commit => parse_blob_data(&mut iter),
+        GitObjectType::Tree => parse_tree_data(&mut iter),
+    };
+    assert_eq!(size, data.len());
+    return GitObject {
+        type_: type_,
+        data: data,
     };
 }
 
-pub fn store_object(data: &Vec<u8>, digest: &String, header: ObjectHeader) {
-    let pathstr = objstore_path(&digest);
+/// Prepares object data for hashing and writting
+fn prepare_data(type_: &String, data: &Vec<u8>) -> Cursor<Vec<u8>> {
+    let mut content = Cursor::new(Vec::new());
+    content
+        .write(
+            format!("{} {}{}", type_, data.len(), '\0')
+                .to_string()
+                .as_bytes(),
+        )
+        .unwrap();
+    content.write(data).unwrap();
+    content.seek(SeekFrom::Start(0)).unwrap();
+    return content;
+}
+
+/// Stores object in local git object database (in cwd)
+pub fn store_object(type_: &String, data: &Vec<u8>) -> String {
+    let mut data_to_write = prepare_data(type_, data);
+    let sha1 = inner_calculate_object_hash(&mut data_to_write);
+    data_to_write.seek(SeekFrom::Start(0)).unwrap();
+
+    let pathstr = objstore_path(&sha1);
     let outpath = Path::new(&pathstr);
     fs::create_dir_all(outpath.parent().unwrap()).unwrap();
     let mut f = fs::File::create(outpath).unwrap();
 
-    let mut content = Cursor::new(Vec::new());
-    content.write(header.to_string().as_bytes()).unwrap();
-    content.write(data).unwrap();
-    content.seek(SeekFrom::Start(0)).unwrap();
-
-    let mut encoder = ZlibEncoder::new(content, Compression::fast());
+    let mut encoder = ZlibEncoder::new(data_to_write, Compression::fast());
     let mut buffer = [0; 1024];
     loop {
         let bytes = encoder.read(&mut buffer).unwrap();
@@ -142,18 +171,18 @@ pub fn store_object(data: &Vec<u8>, digest: &String, header: ObjectHeader) {
         }
         f.write(&buffer[..bytes]).unwrap();
     }
+    return sha1;
 }
 
-pub fn calculate_object_hash(header: &ObjectHeader, content: &Vec<u8>) -> String {
-    // probably move to objects
-    let mut cont = content.clone();
-    let mut data = Vec::new();
-    data.append(&mut header.to_string().as_bytes().to_vec());
-    data.append(&mut cont);
-
+/// Calculates object sha1 hash
+fn inner_calculate_object_hash(data: &mut Cursor<Vec<u8>>) -> String {
     let mut hash = sha1::Sha1::new();
-    hash.update(data);
+    hash.update(data.get_mut());
+    return format!("{:x}", hash.finalize());
+}
 
-    let digest = format!("{:x}", hash.finalize());
-    return digest;
+/// Calculates object sha1 hash
+pub fn calculate_object_hash(type_: &String, data: &Vec<u8>) -> String {
+    let mut cursor = prepare_data(type_, data);
+    return inner_calculate_object_hash(&mut cursor);
 }

@@ -21,7 +21,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// initialize git repository
-    Init {},
+    Init,
 
     /// print contents of blob objects
     CatFile {
@@ -48,7 +48,7 @@ enum Commands {
     },
 
     /// recursively store current working directory as repository objects
-    WriteTree {},
+    WriteTree,
 
     /// create commit from a written tree
     CommitTree {
@@ -69,7 +69,7 @@ fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Init {} => init(),
+        Commands::Init => init(),
         Commands::CatFile { object, pretty: _ } => print!("{}", files::catfile(object)),
         Commands::HashObject { write, path } => println!("{}", files::hashobject(path, *write)),
         Commands::LsTree { treeid, name_only } => {
@@ -82,7 +82,7 @@ fn main() {
                 }
             }
         }
-        Commands::WriteTree {} => tree::writetree(),
+        Commands::WriteTree => tree::writetree(),
         Commands::CommitTree {
             treeid,
             parent,
