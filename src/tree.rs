@@ -13,27 +13,6 @@ pub struct TreeNode {
     pub hash: String,
 }
 
-fn parse_tree(tree: &GitObject) -> Vec<TreeNode> {
-    if let GitObjectType::Tree = tree.type_ {
-        let mut vec: Vec<TreeNode> = Vec::new();
-        for line in tree
-            .data
-            .strip_suffix('\n')
-            .unwrap_or(tree.data.as_str())
-            .split('\n')
-        {
-            let mut iter = line.split('\t');
-            vec.push(TreeNode {
-                permissions: iter.next().unwrap().to_string(),
-                filename: iter.next().unwrap().to_string(),
-                hash: iter.next().unwrap().to_string(),
-            })
-        }
-        return vec;
-    }
-    panic!("object not a tree")
-}
-
 #[derive(Debug)]
 pub struct Tree {
     pub nodes: Vec<TreeNode>,
@@ -63,6 +42,27 @@ impl Tree {
             buf.append(&mut hex::decode(hash).unwrap());
         }
     }
+}
+
+fn parse_tree(tree: &GitObject) -> Vec<TreeNode> {
+    if let GitObjectType::Tree = tree.type_ {
+        let mut vec: Vec<TreeNode> = Vec::new();
+        for line in tree
+            .data
+            .strip_suffix('\n')
+            .unwrap_or(tree.data.as_str())
+            .split('\n')
+        {
+            let mut iter = line.split('\t');
+            vec.push(TreeNode {
+                permissions: iter.next().unwrap().to_string(),
+                filename: iter.next().unwrap().to_string(),
+                hash: iter.next().unwrap().to_string(),
+            })
+        }
+        return vec;
+    }
+    panic!("object not a tree")
 }
 
 pub fn lstree(treeid: &String) -> Tree {
