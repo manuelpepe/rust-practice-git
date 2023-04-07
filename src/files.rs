@@ -1,7 +1,7 @@
 use crate::objects;
 
 use std::fs;
-use std::io::prelude::*;
+use std::io::Read;
 
 pub fn catfile(blobid: &String) -> String {
     let obj = objects::load_object(blobid);
