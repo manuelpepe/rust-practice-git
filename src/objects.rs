@@ -72,12 +72,10 @@ fn parse_header(iter: &mut Iter<u8>) -> (usize, GitObjectType) {
 /// Parses tree data as String from iterator of binary data
 fn parse_tree_data(iter: &mut Iter<u8>) -> String {
     let mut s = String::new();
-    // TODO: Reorder
     // TODO: Add file type to output (calling a func similar to get header, but without reading the whole file)
     //      https://stackoverflow.com/questions/30412521/how-to-read-a-specific-number-of-bytes-from-a-stream
     while iter.len() > 0 {
         // permissions
-        // TODO: Leftpad with 0s to 6 chars
         for &i in iter.by_ref() {
             if i == 0x20 {
                 break;
@@ -125,9 +123,8 @@ pub fn load_object(sha1digest: &String) -> Result<GitObject> {
     };
 
     let mut buf = Vec::new();
-    match ZlibDecoder::new(file).read_to_end(&mut buf) {
-        Ok(_) => {}
-        Err(_) => bail!("error decoding object data"),
+    if let Err(e) = ZlibDecoder::new(file).read_to_end(&mut buf) {
+        bail!(e)
     };
 
     // Parse file data
@@ -158,6 +155,19 @@ fn prepare_data(type_: &String, data: &Vec<u8>) -> Cursor<Vec<u8>> {
     return content;
 }
 
+/// Writes ZlibEncoder contents into a file
+fn write_encoder<R: Read>(encoder: &mut ZlibEncoder<R>, file: &mut fs::File) -> Result<()> {
+    let mut buffer = [0; 1024];
+    loop {
+        let bytes = encoder.read(&mut buffer)?;
+        if bytes == 0 {
+            break;
+        }
+        file.write(&buffer[..bytes])?;
+    }
+    Ok(())
+}
+
 /// Stores object in local git object database (in cwd)
 pub fn store_object(type_: &String, data: &Vec<u8>) -> Result<String> {
     let mut data_to_write = prepare_data(type_, data);
@@ -167,17 +177,10 @@ pub fn store_object(type_: &String, data: &Vec<u8>) -> Result<String> {
     let pathstr = objstore_path(&sha1);
     let outpath = Path::new(&pathstr);
     fs::create_dir_all(outpath.parent().unwrap())?;
-    let mut f = fs::File::create(outpath)?;
 
+    let mut file = fs::File::create(outpath)?;
     let mut encoder = ZlibEncoder::new(data_to_write, Compression::fast());
-    let mut buffer = [0; 1024];
-    loop {
-        let bytes = encoder.read(&mut buffer)?;
-        if bytes == 0 {
-            break;
-        }
-        f.write(&buffer[..bytes])?;
-    }
+    write_encoder(&mut encoder, &mut file)?;
     return Ok(sha1);
 }
 

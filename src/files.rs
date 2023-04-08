@@ -52,6 +52,10 @@ mod tests {
 
                 let read_content = catfile(&sha1).unwrap();
                 assert!(read_content.eq(content));
+
+                let git_read_content =
+                    testutils::get_git_output(&["cat-file", "-p", &sha1.as_str()]);
+                assert_eq!(git_read_content, read_content);
             }
         });
     }
