@@ -1,3 +1,4 @@
+use anyhow::Result;
 use clap::Parser;
 use clap::Subcommand;
 
@@ -69,11 +70,17 @@ fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Init => init(),
-        Commands::CatFile { object, pretty: _ } => print!("{}", files::catfile(object)),
-        Commands::HashObject { write, path } => println!("{}", files::hashobject(path, *write)),
+        Commands::Init => {
+            init().unwrap();
+        }
+        Commands::CatFile { object, pretty: _ } => {
+            print!("{}", files::catfile(object).unwrap());
+        }
+        Commands::HashObject { write, path } => {
+            println!("{}", files::hashobject(path, *write).unwrap())
+        }
         Commands::LsTree { treeid, name_only } => {
-            let tree = tree::lstree(&treeid);
+            let tree = tree::lstree(&treeid).unwrap();
             for node in tree.iter() {
                 if *name_only {
                     println!("{}", node.filename);
@@ -82,7 +89,10 @@ fn main() {
                 }
             }
         }
-        Commands::WriteTree => tree::writetree(),
+        Commands::WriteTree => {
+            let digest = tree::writetree().unwrap();
+            println!("{}", digest);
+        }
         Commands::CommitTree {
             treeid,
             parent,
@@ -93,7 +103,21 @@ fn main() {
                     .unwrap();
             println!("{}", newcommitid);
         }
-        Commands::Clone { url, path } => clone::clone(url, path),
+        Commands::Clone { url, path } => {
+            clone::clone(url, path).unwrap();
+        }
+    }
+}
+
+fn init() -> Result<()> {
+    fs::create_dir(".git")?;
+    fs::create_dir(".git/objects")?;
+    fs::create_dir(".git/refs")?;
+    fs::write(".git/HEAD", "ref: refs/heads/master\n")?;
+    println!("Initialized git directory");
+    return Ok(());
+}
+        }
     }
 }
 

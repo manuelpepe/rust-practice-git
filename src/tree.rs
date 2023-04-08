@@ -1,5 +1,6 @@
 use crate::files::hashobject;
 use crate::objects::{load_object, store_object, GitObject, GitObjectType};
+use anyhow::Result;
 use chrono::Utc;
 use std::fs::{self, DirEntry};
 use std::io::{self, Write};
@@ -8,7 +9,7 @@ use std::slice::Iter;
 
 #[derive(Debug)]
 pub struct TreeNode {
-    pub permissions: String, // TODO: Change to hex
+    pub permissions: String,
     pub filename: String,
     pub hash: String,
 }
@@ -65,18 +66,18 @@ fn parse_tree(tree: &GitObject) -> Vec<TreeNode> {
     panic!("object not a tree")
 }
 
-pub fn lstree(treeid: &String) -> Tree {
-    let obj = load_object(treeid);
+pub fn lstree(treeid: &String) -> Result<Tree> {
+    let obj = load_object(treeid)?;
     let tree = Tree::new(&obj);
-    return tree;
+    return Ok(tree);
 }
 
-pub fn writetree() {
-    let hash = hash_dir(&"./".to_string()).unwrap();
-    println!("{}", hash);
+pub fn writetree() -> Result<String> {
+    let hash = hash_dir(&"./".to_string())?;
+    return Ok(format!("{}", hash));
 }
 
-fn hash_dir(path: &String) -> io::Result<String> {
+fn hash_dir(path: &String) -> Result<String> {
     let mut tree = Tree { nodes: Vec::new() };
     let mut files: Vec<DirEntry> = fs::read_dir(path)?.map(|f| f.unwrap()).collect();
     files.sort_by_key(|f| f.file_name());
@@ -96,13 +97,13 @@ fn hash_dir(path: &String) -> io::Result<String> {
             tree.nodes.push(TreeNode {
                 permissions: "100644".to_string(),
                 filename: node.file_name().to_str().unwrap().to_string(),
-                hash: hashobject(&path_string.to_string(), true),
+                hash: hashobject(&path_string.to_string(), true)?,
             });
         }
     }
     let mut buf = Vec::new();
     tree.to_buf(&mut buf);
-    return Ok(store_object(&"tree".to_string(), &buf));
+    return store_object(&"tree".to_string(), &buf);
 }
 
 #[allow(dead_code)]
@@ -120,7 +121,7 @@ fn current_time() -> String {
     return now.format("%s %z").to_string();
 }
 
-fn store_commit(content: &Vec<u8>) -> String {
+fn store_commit(content: &Vec<u8>) -> Result<String> {
     return store_object(&"commit".to_string(), content);
 }
 
@@ -137,7 +138,7 @@ pub fn committree(
     treeid: &String,
     parent_commitid: &String,
     message: &String,
-) -> io::Result<String> {
+) -> Result<String> {
     let timestamp = current_time();
     let mut content = Vec::new();
 
@@ -151,7 +152,7 @@ pub fn committree(
     content.write(message.as_bytes())?;
     content.write("\n".as_bytes())?;
 
-    let digest = store_commit(&content);
+    let digest = store_commit(&content)?;
     update_master_ref(&digest)?;
     return Ok(digest);
 }

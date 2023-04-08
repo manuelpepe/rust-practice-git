@@ -4,6 +4,7 @@ use std::{
     io::{Cursor, Read},
 };
 
+use anyhow::{bail, Result};
 use bytes::{Buf, Bytes};
 use flate2::bufread::ZlibDecoder;
 
@@ -61,7 +62,7 @@ pub struct Entry {
     pub data: Bytes,
 }
 
-fn unpack_compressed_data(data: &[u8]) -> Result<(usize, Bytes), ()> {
+fn unpack_compressed_data(data: &[u8]) -> Result<(usize, Bytes)> {
     let bytes = Bytes::from(data.to_vec());
     let mut decoder = ZlibDecoder::new(bytes.as_ref());
     let mut content = Vec::new();
@@ -72,13 +73,14 @@ fn unpack_compressed_data(data: &[u8]) -> Result<(usize, Bytes), ()> {
     };
 }
 
-fn parse_header(data: &[u8]) -> u32 {
-    let pack = String::from_utf8(data[..4].try_into().unwrap()).unwrap();
-    assert_eq!(pack, "PACK");
-    let version = u32::from_be_bytes(data[4..8].try_into().unwrap());
-    assert_eq!(version, 2);
-    let objects = u32::from_be_bytes(data[8..].try_into().unwrap());
-    return objects;
+fn parse_header(data: &[u8]) -> Result<u32> {
+    let pack = String::from_utf8(data[..4].try_into()?)?;
+    if !pack.eq("PACK") {
+        bail!("packfile data missing PACK header");
+    }
+    let version = u32::from_be_bytes(data[4..8].try_into()?);
+    let objects = u32::from_be_bytes(data[8..].try_into()?);
+    return Ok(objects);
 }
 
 /// parses variable size encoding according to the specification gitformat-pack.txt (*1)
@@ -100,7 +102,7 @@ fn parse_size_encoding(data: &[u8], ix: usize, starting_shift: u8) -> (usize, us
     return (ix_ - ix, size);
 }
 
-fn apply_delta(data: &[u8], source_buf: &Bytes, target_size: usize) -> Vec<u8> {
+fn apply_delta(data: &[u8], source_buf: &Bytes, target_size: usize) -> Result<Vec<u8>> {
     let mut buf = Cursor::new(data);
     let mut target_buf = Vec::new();
     while buf.remaining() > 0 {
@@ -138,8 +140,10 @@ fn apply_delta(data: &[u8], source_buf: &Bytes, target_size: usize) -> Vec<u8> {
             target_buf.append(&mut data);
         }
     }
-    assert_eq!(target_buf.len(), target_size);
-    return target_buf;
+    if target_buf.len() != target_size {
+        bail!("buffer size differrs from target size");
+    }
+    return Ok(target_buf);
 }
 
 fn read_hash(data: &[u8], ix: usize) -> String {
@@ -150,7 +154,7 @@ fn read_hash(data: &[u8], ix: usize) -> String {
     );
 }
 
-fn parse_entries(data: &[u8]) -> Vec<Entry> {
+fn parse_entries(data: &[u8]) -> Result<Vec<Entry>> {
     let mut byhash: HashMap<String, Entry> = HashMap::new();
     let mut ix = 0;
     while ix < data.len() - 20 {
@@ -166,7 +170,7 @@ fn parse_entries(data: &[u8]) -> Vec<Entry> {
                 let parent_sha = read_hash(&data, ix);
                 ix += 20;
 
-                let (bytes_read, content) = unpack_compressed_data(&data[ix..]).unwrap();
+                let (bytes_read, content) = unpack_compressed_data(&data[ix..])?;
                 let (source_len_bytes, source_len) = parse_size_encoding(&content, 0, 7);
                 let (target_len_bytes, target_len) =
                     parse_size_encoding(&content, source_len_bytes, 7);
@@ -177,7 +181,7 @@ fn parse_entries(data: &[u8]) -> Vec<Entry> {
                 let prev_data = byhash.get(&parent_sha).unwrap();
                 assert_eq!(prev_data.data.len(), source_len);
 
-                let deltified = Bytes::from(apply_delta(intructions, &prev_data.data, target_len));
+                let deltified = Bytes::from(apply_delta(intructions, &prev_data.data, target_len)?);
                 let sha1 = calculate_object_hash(&prev_data.type_.to_string(), &deltified.to_vec());
                 let entry = Entry {
                     type_: prev_data.type_,
@@ -188,7 +192,7 @@ fn parse_entries(data: &[u8]) -> Vec<Entry> {
                 byhash.insert(sha1, entry);
             }
             _ => {
-                let (bytes_read, content) = unpack_compressed_data(&data[ix..]).unwrap();
+                let (bytes_read, content) = unpack_compressed_data(&data[ix..])?;
                 ix += bytes_read;
                 let sha1 = calculate_object_hash(&object_type.to_string(), &content.to_vec());
                 let entry = Entry {
@@ -202,17 +206,23 @@ fn parse_entries(data: &[u8]) -> Vec<Entry> {
         };
     }
 
-    return byhash.values().cloned().collect();
+    // It would be better to store the entries directly in a Vec<Entry> and only
+    // store the (sha => index) of each entry in the HashMap. This would avoid the
+    // need to .clone() every entry in the HashMap to get a Vec<Entry>, while still allowing
+    // fast lookup for delta objects.
+    return Ok(byhash.values().cloned().collect());
 }
 
-pub fn parse_packfile(data: &[u8]) -> Packfile {
+pub fn parse_packfile(data: &[u8]) -> Result<Packfile> {
     let data = Bytes::from(data.to_vec());
-    let objects = parse_header(&data[..12]);
-    let entries = parse_entries(&data[12..]);
+    let expected_objects = parse_header(&data[..12])?;
+    let entries = parse_entries(&data[12..])?;
     let packhash = read_hash(&data, data.len() - 20);
-    assert_eq!(objects as usize, entries.len());
-    return Packfile {
+    if entries.len() != expected_objects as usize {
+        bail!("parsed entries differ from expected entries");
+    }
+    return Ok(Packfile {
         sha1: packhash,
         entries: entries,
-    };
+    });
 }

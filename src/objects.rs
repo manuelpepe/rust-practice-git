@@ -1,3 +1,4 @@
+use anyhow::{bail, Result};
 use core::slice::Iter;
 use flate2::read::{ZlibDecoder, ZlibEncoder};
 use flate2::Compression;
@@ -115,25 +116,31 @@ fn parse_blob_data(iter: &mut Iter<u8>) -> String {
 }
 
 /// Loads object from local git object store and returns a GitObject
-pub fn load_object(sha1digest: &String) -> GitObject {
+pub fn load_object(sha1digest: &String) -> Result<GitObject> {
     // Decode file
     let fpath = objstore_path(&sha1digest);
-    let file = fs::File::open(fpath).unwrap();
+    let file = match fs::File::open(&fpath) {
+        Ok(f) => f,
+        Err(_) => bail!("file '{}' does not exists", &fpath),
+    };
+
     let mut buf = Vec::new();
-    ZlibDecoder::new(file).read_to_end(&mut buf).unwrap();
+    match ZlibDecoder::new(file).read_to_end(&mut buf) {
+        Ok(_) => {}
+        Err(_) => bail!("error decoding object data"),
+    };
 
     // Parse file data
     let mut iter = buf.iter();
-    let (size, type_) = parse_header(&mut iter);
+    let (_, type_) = parse_header(&mut iter);
     let data = match type_ {
         GitObjectType::Blob | GitObjectType::Commit => parse_blob_data(&mut iter),
         GitObjectType::Tree => parse_tree_data(&mut iter),
     };
-    assert_eq!(size, data.len());
-    return GitObject {
+    return Ok(GitObject {
         type_: type_,
         data: data,
-    };
+    });
 }
 
 /// Prepares object data for hashing and writting
@@ -152,26 +159,26 @@ fn prepare_data(type_: &String, data: &Vec<u8>) -> Cursor<Vec<u8>> {
 }
 
 /// Stores object in local git object database (in cwd)
-pub fn store_object(type_: &String, data: &Vec<u8>) -> String {
+pub fn store_object(type_: &String, data: &Vec<u8>) -> Result<String> {
     let mut data_to_write = prepare_data(type_, data);
     let sha1 = inner_calculate_object_hash(&mut data_to_write);
-    data_to_write.seek(SeekFrom::Start(0)).unwrap();
+    data_to_write.seek(SeekFrom::Start(0))?;
 
     let pathstr = objstore_path(&sha1);
     let outpath = Path::new(&pathstr);
-    fs::create_dir_all(outpath.parent().unwrap()).unwrap();
-    let mut f = fs::File::create(outpath).unwrap();
+    fs::create_dir_all(outpath.parent().unwrap())?;
+    let mut f = fs::File::create(outpath)?;
 
     let mut encoder = ZlibEncoder::new(data_to_write, Compression::fast());
     let mut buffer = [0; 1024];
     loop {
-        let bytes = encoder.read(&mut buffer).unwrap();
+        let bytes = encoder.read(&mut buffer)?;
         if bytes == 0 {
             break;
         }
-        f.write(&buffer[..bytes]).unwrap();
+        f.write(&buffer[..bytes])?;
     }
-    return sha1;
+    return Ok(sha1);
 }
 
 /// Calculates object sha1 hash
