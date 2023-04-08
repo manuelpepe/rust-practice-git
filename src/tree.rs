@@ -1,6 +1,6 @@
 use crate::files::hashobject;
 use crate::objects::{load_object, store_object, GitObject, GitObjectType};
-use anyhow::Result;
+use anyhow::{bail, Result};
 use chrono::Utc;
 use std::fs::{self, DirEntry};
 use std::io::{self, Write};
@@ -155,4 +155,111 @@ pub fn committree(
     let digest = store_commit(&content)?;
     update_master_ref(&digest)?;
     return Ok(digest);
+}
+
+/// Recursively creates files and directories in `base` directory
+/// to match those of the given tree.
+pub fn checkout_tree(sha1: &String, base: &String) -> Result<()> {
+    let tree = lstree(sha1)?;
+    for node in tree.iter() {
+        let new_base = format!("{}/{}", base, node.filename);
+        let new_base = new_base
+            .strip_prefix("/")
+            .unwrap_or(new_base.as_str())
+            .to_string();
+        if node.permissions == "40000" {
+            fs::create_dir(&new_base)?;
+            if let Err(e) = checkout_tree(&node.hash, &new_base) {
+                bail!(e);
+            };
+        } else {
+            let blob = load_object(&node.hash)?;
+            if let GitObjectType::Blob = blob.type_ {
+                let mut f = fs::File::create(new_base)?;
+                f.write(blob.data.as_bytes())?;
+            } else {
+                bail!("treating {} as file", node.hash)
+            }
+        }
+    }
+    return Ok(());
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::path;
+
+    use anyhow::Result;
+
+    use crate::objects::objstore_path;
+    use crate::testutils;
+    use crate::tree::checkout_tree;
+    use crate::tree::lstree;
+
+    use super::writetree;
+    use super::Tree;
+
+    fn assert_tree_objects_exist(tree: &Tree, base: &String) {
+        for node in &tree.nodes {
+            let node_path = format!("{}/{}", base, node.filename);
+            let node_path = node_path
+                .strip_prefix("/")
+                .unwrap_or(node_path.as_str())
+                .to_string();
+
+            if node.permissions == "40000" {
+                let next_tree = lstree(&node.hash).unwrap();
+                assert_tree_objects_exist(&next_tree, &node_path);
+            } else {
+                assert!(
+                    path::Path::new(&objstore_path(&node.hash)).exists(),
+                    "path {} should exist",
+                    node_path
+                );
+            }
+        }
+    }
+
+    fn assert_tree_exist(tree: &Tree, base: &String) -> Result<()> {
+        for node in &tree.nodes {
+            let node_path = format!("{}/{}", base, node.filename);
+            let node_path = node_path
+                .strip_prefix("/")
+                .unwrap_or(node_path.as_str())
+                .to_string();
+
+            if node.permissions == "40000" {
+                let next_tree = lstree(&node.hash).unwrap();
+                assert_tree_exist(&next_tree, &node_path)?;
+            } else {
+                assert!(
+                    path::Path::new(&node_path).exists(),
+                    "path {} should exist",
+                    node_path
+                );
+            }
+        }
+        return Ok(());
+    }
+
+    #[test]
+    fn test_tree_funcs() {
+        testutils::in_tmp_git(|| {
+            fs::create_dir_all("a/b").expect("should be able to create directories");
+            fs::write("a/f1.txt", "some content").expect("should be able to write file");
+            fs::write("a/b/f2.txt", "other content").expect("should be able to write file");
+
+            let sha1 = writetree().unwrap();
+            assert!(path::Path::new(&objstore_path(&sha1)).exists());
+
+            let tree = lstree(&sha1).unwrap();
+            assert_eq!(tree.nodes.len(), 1);
+            assert_tree_objects_exist(&tree, &String::new());
+
+            fs::remove_dir_all("a").unwrap();
+            checkout_tree(&sha1, &String::new()).unwrap();
+            assert_tree_exist(&tree, &String::new()).unwrap();
+        });
+    }
 }

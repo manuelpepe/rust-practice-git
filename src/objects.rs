@@ -45,7 +45,7 @@ impl GitObjectType {
 }
 
 /// Returns the relative path to a git object given its hash, in the cwd
-fn objstore_path(sha1digest: &String) -> String {
+pub fn objstore_path(sha1digest: &String) -> String {
     return Path::new(".git/objects")
         .join(&sha1digest[..2])
         .join(&sha1digest[2..])

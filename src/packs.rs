@@ -78,7 +78,7 @@ fn parse_header(data: &[u8]) -> Result<u32> {
     if !pack.eq("PACK") {
         bail!("packfile data missing PACK header");
     }
-    let version = u32::from_be_bytes(data[4..8].try_into()?);
+    let _version = u32::from_be_bytes(data[4..8].try_into()?);
     let objects = u32::from_be_bytes(data[8..].try_into()?);
     return Ok(objects);
 }

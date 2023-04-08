@@ -3,11 +3,10 @@ use bytes::Bytes;
 use crate::init;
 use crate::objects::{load_object, store_object, GitObjectType};
 use crate::packs::{self, ObjectType, Packfile};
-use crate::tree::lstree;
+use crate::tree::checkout_tree;
 use anyhow::{bail, Result};
 use std::env::set_current_dir;
 use std::fs;
-use std::io::Write;
 use std::str;
 
 /// Perform a blocking HTTP request to the given URL and download a list of refs
@@ -113,32 +112,4 @@ fn checkout_commit(sha1: &String) -> Result<()> {
     } else {
         bail!("head is not a commit object");
     }
-}
-
-/// Recursively creates files and directories in `base` directory
-/// to match those of the given tree.
-fn checkout_tree(sha1: &String, base: &String) -> Result<()> {
-    let tree = lstree(sha1)?;
-    for node in tree.iter() {
-        let mut new_base = format!("{}/{}", base, node.filename);
-        new_base = new_base
-            .strip_prefix("/")
-            .unwrap_or(new_base.as_str())
-            .to_string();
-        if node.permissions == "40000" {
-            fs::create_dir(&new_base)?;
-            if let Err(e) = checkout_tree(&node.hash, &new_base) {
-                bail!(e);
-            };
-        } else {
-            let blob = load_object(&node.hash)?;
-            if let GitObjectType::Blob = blob.type_ {
-                let mut f = fs::File::create(new_base)?;
-                f.write(blob.data.as_bytes())?;
-            } else {
-                bail!("treating {} as file", node.hash)
-            }
-        }
-    }
-    return Ok(());
 }
