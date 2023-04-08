@@ -17,6 +17,7 @@ Made for practicing rust and bit operations following the [CodeCrafter's Rust tr
 ## TODO: 
 
 * ~~Implement `git clone`~~
-* Better error handling
+* ~~Better error handling~~
 * ~~Better argument parsing~~
-* Add file type to `ls-tree` output without `--name-only`
+* ~~Add tests~~
+* Add object type to `ls-tree` output without `--name-only`
