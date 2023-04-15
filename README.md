@@ -1,6 +1,8 @@
 # Git in Rust
 
-Made for practicing rust and bit operations following the [CodeCrafter's Rust track](https://app.codecrafters.io/courses/git?track=rust).
+A minimal Git client written in Rust.
+
+Made for practice following the [CodeCrafter's GitRust track](https://app.codecrafters.io/courses/git?track=rust).
 
 
 ## Implemented Features
