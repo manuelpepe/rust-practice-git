@@ -438,7 +438,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "git-starter-rust"
+name = "git-rust"
 version = "0.1.0"
 dependencies = [
  "anyhow",

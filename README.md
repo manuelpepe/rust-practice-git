@@ -7,7 +7,6 @@ Made for practice following the [CodeCrafter's GitRust track](https://app.codecr
 
 ## Implemented Features
 
-
 * `init`: Initialize git repository (creates basic `.git`)
 * `hash-object [-w] <filepath>`: Store a blob object in `.git/objects`
 * `cat-file <-p> <sha1>`: Prints content of blob object
@@ -15,6 +14,12 @@ Made for practice following the [CodeCrafter's GitRust track](https://app.codecr
 * `write-tree`: Stores the whole current directory as a tree object in `.git/objects`. All subdirectories and files are also stored as trees and blobs respectively.
 * `commit-tree <tree_sha> -p <commit_sha> -m <message>`: Store a commit object in `.git/objects`
 * `clone <url> <dir>`: Clone a repository
+
+
+## Usage:
+
+Directly use `cargo run` (i.e. `cargo run clone <url> <dir>`), or build the binary with `cargo build --release` and call it directly from `target/release/git`
+
 
 ## TODO: 
 
